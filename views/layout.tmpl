@@ -1,0 +1,48 @@
+{{ define "layout-start" }}
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Full stack Demo app made in frameworkless Go (Todo App), centralized HTTP error handling, CRUD to a SQLite database and HTMx-powered frontend" />
+    <meta name="google" content="notranslate" />
+    <link rel="shortcut icon" href="/assets/img/Go_gopher_favicon.svg" type="image/svg+xml">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Todo List {{ .title }}</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"
+        integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
+        crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/response-targets.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.2/dist/sweetalert2.all.min.js"></script>
+    <link rel="stylesheet" href="/assets/css/main.css">
+</head>
+
+<body class="sample-transition" hx-boost="true" hx-ext="response-targets">
+
+    {{ if not .isError }}
+
+    {{ template "navbar" .}}
+
+    {{ end }}
+
+    <main {{ if not .isError }} class="pt-40" {{ end }}>
+        {{ end }}
+
+        {{ define "layout-end" }}
+    </main>
+
+    <footer class="w-fit mx-auto mt-20">
+
+        {{ template "flash" .}}
+
+    </footer>
+</body>
+
+</html>
+
+{{ end }}

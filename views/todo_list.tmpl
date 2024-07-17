@@ -1,0 +1,76 @@
+{{ template "layout-start" .}}
+
+<div class="flex justify-between max-w-2xl mx-auto border-b border-b-slate-600 mb-8 pb-2">
+    <h1 class="text-2xl font-bold text-center">
+        {{ slice .title 2 }}
+    </h1>
+    <a hx-swap="transition:true" class="badge badge-info p-4 hover:scale-[1.1]" href="/create">
+        New
+    </a>
+</div>
+<section class="overflow-auto max-w-2xl max-h-96 mx-auto bg-slate-600 rounded-lg shadow-xl">
+    <table class="table table-zebra">
+        <!-- head -->
+        <thead class="bg-slate-700">
+            <tr>
+                <th></th>
+                <th>Tasks</th>
+                <th>Status</th>
+                <th class="text-center">Options</th>
+            </tr>
+        </thead>
+        {{ if .todos }}
+        <tbody>
+            {{ range .todos }}
+            <tr>
+                <th>{{ .ID }} </th>
+                <td>{{ .Title }}</td>
+                <td>
+                    {{ if .Status }}
+                    ✅
+                    {{ else }}
+                    ❌
+                    {{ end }}
+                </td>
+                {{ $path := printf "/edit?id=%d" .ID }}
+                <td class="flex justify-center gap-2">
+                    <a href={{ $path }} hx-swap="transition:true" class="badge badge-primary p-3 hover:scale-[1.1]">
+                        Edit
+                    </a>
+                    <button hx-delete={{ printf "/delete?id=%d" .ID }} hx-confirm={{
+                        printf "Are you sure you want to delete the task with ID #%d?" .ID }} hx-swap="transition:true"
+                        onClick="this.addEventListener('htmx:confirm', (e) => {
+                                    e.preventDefault()
+                                    Swal.fire({
+                                        title: 'Do you want to perform this action?',
+                                        text: `${e.detail.question}`,
+                                        icon: 'warning',
+                                        background: '#1D232A',
+                                        color: '#A6ADBA',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#3085d6',
+                                        cancelButtonColor: '#d33',
+                                        confirmButtonText: 'Yes, delete it!'
+                                    }).then((result) => {
+                                        if(result.isConfirmed) e.detail.issueRequest(true);
+                                    })
+                                })" hx-target="body" class="badge badge-error p-3 hover:scale-[1.1]">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+        {{ else }}
+        <tbody>
+            <tr>
+                <td colspan="4" align="center">
+                    You do not have anything to do
+                </td>
+            </tr>
+        </tbody>
+        {{ end }}
+    </table>
+</section>
+
+{{ template "layout-end" .}}
