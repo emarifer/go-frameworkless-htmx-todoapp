@@ -6,12 +6,18 @@ import (
 	"time"
 )
 
+// SetFlash sets a cookie with the flash message (base64 encoded)
+// which is made available for the next request.
 func SetFlash(w http.ResponseWriter, name string, value []byte) {
 	c := &http.Cookie{Name: name, Value: encode(value)}
 
 	http.SetCookie(w, c)
 }
 
+// getFlash tries to retrieve the message (as a []byte)
+// set in a cookie by a handler in the previous request,
+// decodes it, and overrides the cookie so that
+// the message can only be read once.
 func getFlash(
 	w http.ResponseWriter, r *http.Request, name string,
 ) ([]byte, error) {
@@ -43,6 +49,10 @@ func getFlash(
 	return value, nil
 }
 
+// GetMessages is a convenience function that uses the getFlash function,
+// ignoring the errors it may return and transforming
+// the byte slices of the error/success messages into strings.
+// If the slices are <nil>, return their respective empty strings.
 func GetMessages(w http.ResponseWriter, r *http.Request) (string, string) {
 	fmErr, _ := getFlash(w, r, "error")
 	fmSucc, _ := getFlash(w, r, "success")

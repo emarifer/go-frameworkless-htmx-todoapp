@@ -17,7 +17,10 @@ var tmpl *template.Template
 // wrap it within another Handler interface
 type middleware func(http.Handler) http.Handler
 
-// buildChain builds the middlware chain recursively, functions are first class
+// buildChain builds the middlware chain recursively, functions are first class.
+// This function allows us, therefore, to add as many middlewares
+// as we want (included in a slice) that wrap our handler
+// without the code becoming cumbersome to read.
 func buildChain(f http.Handler, m ...middleware) http.Handler {
 	// if our chain is done, use the original Handler type function
 	if len(m) == 0 {

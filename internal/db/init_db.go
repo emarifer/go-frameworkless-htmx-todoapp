@@ -4,18 +4,15 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var db *sql.DB
 
-func getConnection() (*sql.DB, error) {
+func getConnection(logger *slog.Logger) (*sql.DB, error) {
 	var err error
-
-	// if db != nil {
-	// 	return db, nil
-	// }
 
 	// Init SQLite3 database
 	db, err = sql.Open("sqlite3", "./app_data.db")
@@ -23,7 +20,7 @@ func getConnection() (*sql.DB, error) {
 		return nil, fmt.Errorf("🔥 failed to connect to the database: %s", err)
 	}
 
-	log.Println("🚀 Connected Successfully to the Database")
+	logger.Info("🚀 Connected Successfully to the Database")
 
 	return db, nil
 }
@@ -59,11 +56,11 @@ func createMigrations(db *sql.DB) error {
 	return nil
 }
 
-func GetDB() *sql.DB {
+func GetDB(l *slog.Logger) *sql.DB {
 	var err error
 
 	if db == nil {
-		if db, err = getConnection(); err != nil {
+		if db, err = getConnection(l); err != nil {
 			log.Fatalf("🔥 failed to connect to the database: %s", err.Error())
 		}
 

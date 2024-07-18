@@ -21,10 +21,10 @@ func main() {
 	mux.Handle("/assets/", http.StripPrefix("/assets/", fs))
 
 	// Dependency injection
-	us := services.NewUserService(services.User{}, db.GetDB())
+	us := services.NewUserService(services.User{}, db.GetDB(logger))
 	ah := handlers.NewAuthHandle(logger, us)
 
-	ts := services.NewTodoService(services.Todo{}, db.GetDB())
+	ts := services.NewTodoService(services.Todo{}, db.GetDB(logger))
 	th := handlers.NewTodoHandle(logger, ts)
 
 	nfh := handlers.NewNotFoundHandle(logger)

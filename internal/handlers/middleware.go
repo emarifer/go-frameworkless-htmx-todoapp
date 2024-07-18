@@ -8,6 +8,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// authMiddleware is a handler that verifies if the token
+// exists (in a cookie) and if it is invalid (due to the
+// signature not being verified or having expired).
+// If the jsonwebtoken is valid, it extracts the user data
+// and injects it with the context of the request
+// that will be passed to the next handler in the chain.
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the JWT(cookie) by name
@@ -64,6 +70,13 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// flagMiddleware is middleware for unprotected routes
+// that manages a boolean flag (fromProtected) for
+// conditional rendering on the pages corresponding to said routes.
+// Checks if the user is authenticated: if it is, inject
+// the fromProtected flag into the context to true, false otherwise.
+// Basically, this flag is intended to prevent
+// an authenticated user from logging in/registering again.
 func flagMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the JWT(cookie) by name

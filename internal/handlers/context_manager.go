@@ -16,7 +16,7 @@ type UserData struct {
 	Tzone    string
 }
 
-// withRequestUserData creates a new context that has requestData injected.
+// withRequestUserData creates a new context that has UserData injected.
 func withRequestUserData(
 	ctx context.Context, requestData UserData,
 ) context.Context {
@@ -35,6 +35,8 @@ func requestUserData(ctx context.Context) UserData {
 	return UserData{}
 }
 
+// withRequestFromProtected creates a new context that has
+// the fromProtected flag (bool) injected.
 func withRequestFromProtected(
 	ctx context.Context, requestFromProtected bool,
 ) context.Context {
@@ -44,6 +46,9 @@ func withRequestFromProtected(
 	)
 }
 
+// requestFromProtected tries to retrieve the fromProtected flag
+// of the given context. If it does not exist,
+// its default value is returned, that is, false.
 func requestFromProtected(ctx context.Context) bool {
 	if fromProtected, ok := ctx.Value(ctxKeyRequestFromProtected).(bool); ok {
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-# Full stack Demo app made in frameworkless 🧬 Go (Todo App), centralized HTTP error handling, CRUD to a SQLite database and HTMx-powered frontend
+# Full stack Demo app made in frameworkless Go (Todo App 🧬), centralized HTTP error handling, CRUD to a SQLite database and HTMx-powered frontend
 
 <img src="assets/img/gopher_logo.webp" width="35%">
 
@@ -25,7 +25,7 @@ In the world of Go, the Unix philosophy is followed which says:
 - Write programs to work together.
 - Write programs to handle text streams because that is a universal interface.
 
-This is why Go users tend to shy away from using (perhaps abusing) frameworks and libraries. This way of thinking has one result: our project is more stable and scalable. You can find these more developed ideas in this [post](https://threedots.tech/post/best-go-framework/).
+This is why Go users tend to shy away from using (perhaps abusing) frameworks and libraries. This way of thinking has one result: our project is more stable and maintainable. You can find these more developed ideas in this [post](https://threedots.tech/post/best-go-framework/).
 
 <div align="center">
 
@@ -35,7 +35,7 @@ This is why Go users tend to shy away from using (perhaps abusing) frameworks an
 
 </div>
 
-It's true that "doing things yourself" is going to involve a certain amount of boilerplate. But with Go until you build large applications the balance between boilerplate and stability/scalability will remain at acceptable levels.
+It's true that "doing things yourself" is going to involve a certain amount of boilerplate. But with Go until you build large applications the balance between boilerplate and stability/maintainability will remain at acceptable levels.
 
 I present here an application template for beginners (a todoapp, always the beginning for Web development 🤦) that includes the most frequent topics: routing, middlewares, centralized error handling, authentication with jsonwebtoken, use of the Go context to pass request-scoped data and some others, in addition to some small "hacky trick" 😀. In any case, solving these problems, common in backend/fullstack development, has a consequence: you learn Go (or any other programming language) better and faster.
 
@@ -61,7 +61,11 @@ To ensure that each part of the application is initialized with its dependencies
 
 The use of [</>htmx](https://htmx.org/) allows behavior similar to that of a SPA, without page reloads when switching from one route to another or when making requests (via AJAX) to the backend. Reading Carson Gross's book [Hypermedia System](https://hypermedia.systems/) is very illuminating.
 
-The styling of the views is achieved through Tailwind CSS and DaisyUI that are obtained from their respective CDNs.
+On the other hand, the </>htmx `response-targets` [extension](https://v1.htmx.org/extensions/response-targets/) allows you to specify different target elements that will be exchanged when different HTTP response codes are received. In our case it makes it easier to replace the entire response body with the corresponding error page.
+
+The styling of the views is achieved through `Tailwind CSS` and `DaisyUI` that are obtained from their respective CDNs.
+
+Likewise, the `SweetAlert2` library is used, a substitute for JavaScript pop-up boxes. In the same way it is obtained from its respective CDN.
 
 Finally, minimal use of [_hyperscript](https://hyperscript.org/) is made to achieve the action of closing the alerts when they are displayed or giving interactivity to the show/hide password button in its corresponding input.
 
