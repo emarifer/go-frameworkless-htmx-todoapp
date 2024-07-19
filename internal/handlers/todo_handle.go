@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,25 +18,18 @@ type TaskService interface {
 	DeleteTodo(t services.Todo) error
 }
 
-func NewTodoHandle(l *slog.Logger, ts TaskService) *TodoHandle {
-
-	return &TodoHandle{
-		logger:      l,
-		todoService: ts,
-	}
+func NewTodoHandle(ts TaskService) *TodoHandle {
+	return &TodoHandle{todoService: ts}
 }
 
 type TodoHandle struct {
-	logger      *slog.Logger
 	todoService TaskService
 }
 
 func (th *TodoHandle) todoListHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	errMsg, succMsg := GetMessages(w, r)
-
-	// fmt.Println("User data:", requestUserData(r.Context()))
 
 	todos, err := th.todoService.GetAllTodos(requestUserData(r.Context()).ID)
 	if err != nil {
@@ -48,11 +40,9 @@ func (th *TodoHandle) todoListHandle(
 			// used it as an example of the errors that can be caught.
 			// Here you can add the errors that you are interested
 			// in throwing as `500` codes.
-			return apiError{
-				message: "error 500: database temporarily out of service",
+			return asCaller(), apiError{
 				status:  http.StatusInternalServerError,
-				handler: asCaller(),
-				logger:  th.logger,
+				message: "error 500: database temporarily out of service",
 			}
 		}
 	}
@@ -70,59 +60,47 @@ func (th *TodoHandle) todoListHandle(
 		"errMsg":        errMsg,
 		"succMsg":       succMsg,
 	}
-
-	return renderView(
-		w, r, asCaller(), th.logger, "todo_list.tmpl", data,
-	)
+	return asCaller(), tmpl.ExecuteTemplate(w, "todo_list.tmpl", data)
 }
 
 func (th *TodoHandle) createTodoHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 
 	data := map[string]any{
 		"title":         "| Create Todo",
 		"fromProtected": true,
 		"username":      upper.Cap(requestUserData(r.Context()).Username),
 	}
-
-	return renderView(
-		w, r, asCaller(), th.logger, "todo_create.tmpl", data,
-	)
+	return asCaller(), tmpl.ExecuteTemplate(w, "todo_create.tmpl", data)
 }
 
 func (th *TodoHandle) createTodoPostHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	newTodo := services.Todo{
 		CreatedBy:   requestUserData(r.Context()).ID,
 		Title:       strings.Trim(r.FormValue("title"), " "),
 		Description: strings.Trim(r.FormValue("description"), " "),
 	}
 
+	// Empty description is allowed but not the title...
 	if newTodo.Title == "" {
 		fm := []byte("Task title empty!!")
 		SetFlash(w, "error", fm)
 
 		http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-		return nil
+		return asCaller(), nil
 	}
 
 	_, err := th.todoService.CreateTodo(newTodo)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			// "no such table" is the error that SQLite3 produces
-			// when some table does not exist, and we have only
-			// used it as an example of the errors that can be caught.
-			// Here you can add the errors that you are interested
-			// in throwing as `500` codes.
-			return apiError{
-				message: "error 500: database temporarily out of service",
+			return asCaller(), apiError{
 				status:  http.StatusInternalServerError,
-				handler: asCaller(),
-				logger:  th.logger,
+				message: "error 500: database temporarily out of service",
 			}
 		}
 	}
@@ -132,25 +110,22 @@ func (th *TodoHandle) createTodoPostHandle(
 
 	http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-	return nil
+	return asCaller(), nil
 }
 
 func (th *TodoHandle) editTodoHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		msg := fmt.Sprintf("Go could not convert to integer: %s", err)
-		return apiError{
-			message: msg,
+		return asCaller(), apiError{
 			status:  http.StatusInternalServerError,
-			handler: asCaller(),
-			logger:  th.logger,
+			message: msg,
 		}
 	}
 
-	// fmt.Println("ID:", id)
 	userID := requestUserData(r.Context()).ID
 	username := requestUserData(r.Context()).Username
 	tzone := requestUserData(r.Context()).Tzone
@@ -164,16 +139,9 @@ func (th *TodoHandle) editTodoHandle(
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			// "no such table" is the error that SQLite3 produces
-			// when some table does not exist, and we have only
-			// used it as an example of the errors that can be caught.
-			// Here you can add the errors that you are interested
-			// in throwing as `500` codes.
-			return apiError{
-				message: "error 500: database temporarily out of service",
+			return asCaller(), apiError{
 				status:  http.StatusInternalServerError,
-				handler: asCaller(),
-				logger:  th.logger,
+				message: "error 500: database temporarily out of service",
 			}
 		}
 		msg := fmt.Sprintf("something went wrong:%s", err)
@@ -182,7 +150,7 @@ func (th *TodoHandle) editTodoHandle(
 
 		http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-		return nil
+		return asCaller(), nil
 	}
 
 	data := map[string]any{
@@ -195,24 +163,19 @@ func (th *TodoHandle) editTodoHandle(
 		"taskStatus":    todo.Status,
 		"createdAt":     services.ConvertDateTime(tzone, todo.CreatedAt),
 	}
-
-	return renderView(
-		w, r, asCaller(), th.logger, "todo_update.tmpl", data,
-	)
+	return asCaller(), tmpl.ExecuteTemplate(w, "todo_update.tmpl", data)
 }
 
 func (th *TodoHandle) editTodoPostHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		msg := fmt.Sprintf("Go could not convert to integer: %s", err)
-		return apiError{
-			message: msg,
+		return asCaller(), apiError{
 			status:  http.StatusInternalServerError,
-			handler: asCaller(),
-			logger:  th.logger,
+			message: msg,
 		}
 	}
 
@@ -222,8 +185,6 @@ func (th *TodoHandle) editTodoPostHandle(
 	} else {
 		status = false
 	}
-
-	fmt.Println("Status:", status)
 
 	t := services.Todo{
 		ID:          id,
@@ -237,25 +198,16 @@ func (th *TodoHandle) editTodoPostHandle(
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			// "no such table" is the error that SQLite3 produces
-			// when some table does not exist, and we have only
-			// used it as an example of the errors that can be caught.
-			// Here you can add the errors that you are interested
-			// in throwing as `500` codes.
-			return apiError{
-				message: "error 500: database temporarily out of service",
+			return asCaller(), apiError{
 				status:  http.StatusInternalServerError,
-				handler: asCaller(),
-				logger:  th.logger,
+				message: "error 500: database temporarily out of service",
 			}
 		}
-		return apiError{
+		return asCaller(), apiError{
+			status: http.StatusInternalServerError,
 			message: fmt.Sprintf(
 				"error 500: task could not be updated: %s", err,
 			),
-			status:  http.StatusInternalServerError,
-			handler: asCaller(),
-			logger:  th.logger,
 		}
 	}
 
@@ -264,21 +216,19 @@ func (th *TodoHandle) editTodoPostHandle(
 
 	http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-	return nil
+	return asCaller(), nil
 }
 
 func (th *TodoHandle) deleteTodoHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		msg := fmt.Sprintf("Go could not convert to integer: %s", err)
-		return apiError{
-			message: msg,
+		return asCaller(), apiError{
 			status:  http.StatusInternalServerError,
-			handler: asCaller(),
-			logger:  th.logger,
+			message: msg,
 		}
 	}
 
@@ -291,16 +241,9 @@ func (th *TodoHandle) deleteTodoHandle(
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			// "no such table" is the error that SQLite3 produces
-			// when some table does not exist, and we have only
-			// used it as an example of the errors that can be caught.
-			// Here you can add the errors that you are interested
-			// in throwing as `500` codes.
-			return apiError{
-				message: "error 500: database temporarily out of service",
+			return asCaller(), apiError{
 				status:  http.StatusInternalServerError,
-				handler: asCaller(),
-				logger:  th.logger,
+				message: "error 500: database temporarily out of service",
 			}
 		}
 
@@ -310,7 +253,7 @@ func (th *TodoHandle) deleteTodoHandle(
 
 		http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-		return nil
+		return asCaller(), nil
 	}
 
 	fm := []byte("Task successfully deleted!!")
@@ -318,5 +261,5 @@ func (th *TodoHandle) deleteTodoHandle(
 
 	http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-	return nil
+	return asCaller(), nil
 }

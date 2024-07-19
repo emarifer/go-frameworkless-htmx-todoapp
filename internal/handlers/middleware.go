@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
+	"time"
 
 	jwtoken "github.com/emarifer/go-frameworkless-htmx/internal/utils/jwt"
 
@@ -125,5 +127,13 @@ func flagMiddleware(next http.Handler) http.Handler {
 		ctx := withRequestFromProtected(r.Context(), true)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func LatencyLoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("latency_human: %v", time.Since(start))
 	})
 }

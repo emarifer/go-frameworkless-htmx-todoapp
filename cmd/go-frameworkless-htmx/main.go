@@ -22,18 +22,20 @@ func main() {
 
 	// Dependency injection
 	us := services.NewUserService(services.User{}, db.GetDB(logger))
-	ah := handlers.NewAuthHandle(logger, us)
+	ah := handlers.NewAuthHandle(us)
 
 	ts := services.NewTodoService(services.Todo{}, db.GetDB(logger))
-	th := handlers.NewTodoHandle(logger, ts)
+	th := handlers.NewTodoHandle(ts)
 
-	nfh := handlers.NewNotFoundHandle(logger)
-
-	handlers.SetupRoutes(mux, nfh, ah, th)
+	handlers.SetupRoutes(mux, logger, ah, th)
 
 	logger.Info("🚀 Listening on :3000…")
 
-	log.Fatal(http.ListenAndServe(":3000", mux))
+	var s http.Handler = mux
+
+	wrapped := handlers.LatencyLoggingMiddleware(s)
+
+	log.Fatal(http.ListenAndServe(":3000", wrapped))
 }
 
 /* REFERENCES:
@@ -59,6 +61,16 @@ https://medium.com/@ozdemir.zynl/rest-api-error-handling-in-go-behavioral-type-a
 https://freshman.tech/snippets/go/extract-url-query-params/
 https://groups.google.com/g/confd-users/c/0HfU_AYvGCY?pli=1
 https://pkg.go.dev/text/template#hdr-Examples
+
+19-07-2024:
+https://www.google.com/search?q=golang+servemux+middleware&oq=&aqs=chrome.3.35i39i362l8.62006j0j7&sourceid=chrome&ie=UTF-8
+
+https://drstearns.github.io/tutorials/gomiddleware/
+https://www.mohitkhare.com/blog/go-middleware/
+https://medium.com/@matryer/writing-middleware-in-golang-and-how-go-makes-it-so-much-fun-4375c1246e81
+https://medium.com/@volodymyr.ladnik/adding-middleware-support-for-servemux-in-golang-fcc5f3901a26
+https://www.jvt.me/posts/2023/09/01/golang-nethttp-global-middleware/
+https://refactoring.guru/design-patterns/adapter/go/example
 */
 
 // func serveTemplate(w http.ResponseWriter, r *http.Request) {

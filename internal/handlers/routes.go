@@ -17,47 +17,28 @@ var tmpl *template.Template
 // wrap it within another Handler interface
 type middleware func(http.Handler) http.Handler
 
-// buildChain builds the middlware chain recursively, functions are first class.
+// chainingMiddleware chains the middlewares that
+// we pass to it in a slice wrapping the handle
+// that we pass as the first parameter.
 // This function allows us, therefore, to add as many middlewares
 // as we want (included in a slice) that wrap our handler
 // without the code becoming cumbersome to read.
-func buildChain(f http.Handler, m ...middleware) http.Handler {
-	// if our chain is done, use the original Handler type function
-	if len(m) == 0 {
-		return f
+func chainingMiddleware(h http.Handler, m ...middleware) http.Handler {
+	if len(m) < 1 {
+		return h
 	}
-	// otherwise nest the Handler type function
-	return m[0](buildChain(f, m[1:cap(m)]...))
-}
 
-// renderView displays the log information corresponding
-// to the controller and executes the template passed to it
-func renderView(
-	w http.ResponseWriter,
-	r *http.Request,
-	caller string,
-	logger *slog.Logger,
-	template string,
-	data map[string]any,
-) error {
+	wrappedHandler := h
+	for i := len(m) - 1; i >= 0; i-- {
+		wrappedHandler = m[i](wrappedHandler)
+	}
 
-	logger.Info(
-		"🔵 Handler Info",
-		"host", r.Host,
-		"handler", caller,
-		"method", r.Method,
-		"path", r.URL.Path,
-		"status", http.StatusOK,
-	)
-
-	return tmpl.ExecuteTemplate(w, template, data)
+	return wrappedHandler
 }
 
 type apiError struct {
-	message string
 	status  int
-	handler string
-	logger  *slog.Logger
+	message string
 }
 
 func (e apiError) Error() string {
@@ -65,24 +46,45 @@ func (e apiError) Error() string {
 }
 
 // Use as a wrapper around the handler functions.
-type rootHandle func(http.ResponseWriter, *http.Request) error
+// Basically, they use the Adapter design pattern.
+type adapterHandle struct {
+	l *slog.Logger
+	h func(http.ResponseWriter, *http.Request) (string, error)
+}
 
-// rootHandle implements http.Handler interface.
-// Since handlers return errors, the ServeHTTP implementation
-// handles errors based on their type.
-// Therefore, this function also performs centralized error handling.
-func (fn rootHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func newAdapterHandle(
+	l *slog.Logger,
+	h func(http.ResponseWriter, *http.Request) (string, error),
+) *adapterHandle {
+	return &adapterHandle{l, h}
+}
 
-	err := fn(w, r) // Call handler function
+// adapterHandle implements the http.Handler interface.
+// Because handlers return errors, the ServeHTTP implementation
+// handles errors based on their type. Therefore, this function
+// also performs centralized error handling in addition
+// to successfully logging the handlers' output.
+func (a adapterHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	caller, err := a.h(w, r)
 	if err == nil {
+		a.l.Info(
+			"🔵 Handler Info",
+			"host", r.Host,
+			"user_agent", r.Header.Get("User-Agent"),
+			"handler", caller,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", http.StatusOK,
+		)
 		return
 	}
 
 	if e, ok := err.(apiError); ok {
-		e.logger.Error(
+		a.l.Error(
 			"🔴 Handler Error",
 			"host", r.Host,
-			"handler", e.handler,
+			"user_agent", r.Header.Get("User-Agent"),
+			"handler", caller,
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", e.status,
@@ -91,7 +93,7 @@ func (fn rootHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		// We handle the case that occurs when the user logs
 		// in but cannot connect to the `todos` table of the DB.
-		if strings.Contains(e.handler, "todoListHandle") {
+		if strings.Contains(caller, "todoListHandle") {
 			dc := &http.Cookie{
 				Name:    "jwt",
 				Path:    "/",
@@ -121,6 +123,9 @@ func (fn rootHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// In case the error returned by the handler is not of
+	// type apiError (it has to be an error while
+	// rendering the template), we return a JSON response with a code 500.
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
 	json.NewEncoder(w).Encode(map[string]any{
@@ -144,7 +149,10 @@ func asCaller() string {
 // the handlers will execute, while registering
 // the routes of the various endpoints.
 func SetupRoutes(
-	m *http.ServeMux, nfh *NotFoundHandle, ah *AuthHandle, th *TodoHandle,
+	m *http.ServeMux,
+	l *slog.Logger,
+	ah *AuthHandle,
+	th *TodoHandle,
 ) {
 	if tmpl == nil {
 		tmpl = template.Must(tmpl.ParseGlob("views/*.tmpl"))
@@ -153,29 +161,38 @@ func SetupRoutes(
 	// unprotected pages middlewares
 	fp := []middleware{flagMiddleware}
 	// protected pages middlewares
-	p := []middleware{authMiddleware}
+	p := []middleware{flagMiddleware, authMiddleware}
 
+	ad := newAdapterHandle(l, ah.homeHandle)
 	// "/{$}" only matches the slash
-	m.Handle("GET /{$}", buildChain(rootHandle(ah.homeHandle), fp...))
+	m.Handle("GET /{$}", chainingMiddleware(ad, fp...))
 
-	m.Handle("GET /register", buildChain(rootHandle(ah.registerHandle), fp...))
-	m.Handle("POST /register", buildChain(rootHandle(ah.registerPostHandle)))
+	ad = newAdapterHandle(l, ah.registerHandle)
+	m.Handle("GET /register", chainingMiddleware(ad, fp...))
+	ad = newAdapterHandle(l, ah.registerPostHandle)
+	m.Handle("POST /register", chainingMiddleware(ad))
 
-	m.Handle("GET /login", buildChain(rootHandle(ah.loginHandle), fp...))
-	m.Handle("POST /login", buildChain(rootHandle(ah.loginPostHandle)))
-	m.Handle("POST /logout", buildChain(rootHandle(ah.logoutHandle), p...))
+	ad = newAdapterHandle(l, ah.loginHandle)
+	m.Handle("GET /login", chainingMiddleware(ad, fp...))
+	ad = newAdapterHandle(l, ah.loginPostHandle)
+	m.Handle("POST /login", chainingMiddleware(ad))
+	ad = newAdapterHandle(l, ah.logoutHandle)
+	m.Handle("POST /logout", chainingMiddleware(ad, p...))
 
-	m.Handle("GET /todo", buildChain(rootHandle(th.todoListHandle), p...))
-	m.Handle("GET /create", buildChain(rootHandle(th.createTodoHandle), p...))
-	m.Handle("POST /create", buildChain(
-		rootHandle(th.createTodoPostHandle), p...,
-	))
-	m.Handle("GET /edit", buildChain(rootHandle(th.editTodoHandle), p...))
-	m.Handle("POST /edit", buildChain(rootHandle(th.editTodoPostHandle), p...))
-	m.Handle("DELETE /delete", buildChain(
-		rootHandle(th.deleteTodoHandle), p...,
-	))
+	ad = newAdapterHandle(l, th.todoListHandle)
+	m.Handle("GET /todo", chainingMiddleware(ad, p...))
+	ad = newAdapterHandle(l, th.createTodoHandle)
+	m.Handle("GET /create", chainingMiddleware(ad, p...))
+	ad = newAdapterHandle(l, th.createTodoPostHandle)
+	m.Handle("POST /create", chainingMiddleware(ad, p...))
+	ad = newAdapterHandle(l, th.editTodoHandle)
+	m.Handle("GET /edit", chainingMiddleware(ad, p...))
+	ad = newAdapterHandle(l, th.editTodoPostHandle)
+	m.Handle("POST /edit", chainingMiddleware(ad, p...))
+	ad = newAdapterHandle(l, th.deleteTodoHandle)
+	m.Handle("DELETE /delete", chainingMiddleware(ad, p...))
 
+	ad = newAdapterHandle(l, notFoundHandle)
 	// "/" matches anything
-	m.Handle("/", buildChain(rootHandle(nfh.notFoundHandle), fp...))
+	m.Handle("/", chainingMiddleware(ad, fp...))
 }

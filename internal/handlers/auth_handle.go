@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -18,20 +17,17 @@ type AuthService interface {
 	CheckEmail(email string) (services.User, error)
 }
 
-func NewAuthHandle(l *slog.Logger, us AuthService) *AuthHandle {
-
-	return &AuthHandle{
-		logger:      l,
-		userService: us,
-	}
+func NewAuthHandle(us AuthService) *AuthHandle {
+	return &AuthHandle{userService: us}
 }
 
 type AuthHandle struct {
-	logger      *slog.Logger
 	userService AuthService
 }
 
-func (ah *AuthHandle) homeHandle(w http.ResponseWriter, r *http.Request) error {
+func (ah *AuthHandle) homeHandle(
+	w http.ResponseWriter, r *http.Request,
+) (string, error) {
 	errMsg, succMsg := GetMessages(w, r)
 
 	data := map[string]any{
@@ -40,15 +36,12 @@ func (ah *AuthHandle) homeHandle(w http.ResponseWriter, r *http.Request) error {
 		"errMsg":        errMsg,
 		"succMsg":       succMsg,
 	}
-
-	return renderView(
-		w, r, asCaller(), ah.logger, "home.tmpl", data,
-	)
+	return asCaller(), tmpl.ExecuteTemplate(w, "home.tmpl", data)
 }
 
 func (ah *AuthHandle) registerHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	errMsg, succMsg := GetMessages(w, r)
 
 	data := map[string]any{
@@ -57,37 +50,24 @@ func (ah *AuthHandle) registerHandle(
 		"errMsg":        errMsg,
 		"succMsg":       succMsg,
 	}
-
-	return renderView(
-		w, r, asCaller(), ah.logger, "register.tmpl", data,
-	)
+	return asCaller(), tmpl.ExecuteTemplate(w, "register.tmpl", data)
 }
 
 func (ah *AuthHandle) registerPostHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	email := strings.Trim(r.FormValue("email"), " ")
 	password := strings.Trim(r.FormValue("password"), " ")
 	username := strings.Trim(r.FormValue("username"), " ")
 
+	// Simple server-side validation...
 	if email == "" || password == "" || username == "" {
 		fm := []byte("Fields cannot be empty")
 		SetFlash(w, "error", fm)
 
 		http.Redirect(w, r, "/register", http.StatusSeeOther)
 
-		return nil
-
-		// TODO: Example error response.
-		// It is necessary to handle the rendering
-		// with htmx/response-targets extension
-		// which will affect the entire body.
-		/* return apiError{
-			message: "error 500: something went wrong",
-			status:  http.StatusInternalServerError,
-			handler: asCaller(),
-			logger:  ah.logger,
-		} */
+		return asCaller(), nil
 	}
 
 	user := services.User{
@@ -104,11 +84,9 @@ func (ah *AuthHandle) registerPostHandle(
 			// used it as an example of the errors that can be caught.
 			// Here you can add the errors that you are interested
 			// in throwing as `500` codes.
-			return apiError{
-				message: "error 500: database temporarily out of service",
+			return asCaller(), apiError{
 				status:  http.StatusInternalServerError,
-				handler: asCaller(),
-				logger:  ah.logger,
+				message: "error 500: database temporarily out of service",
 			}
 		}
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
@@ -119,7 +97,7 @@ func (ah *AuthHandle) registerPostHandle(
 
 		http.Redirect(w, r, "/register", http.StatusSeeOther)
 
-		return nil
+		return asCaller(), nil
 	}
 
 	fm := []byte("You have successfully registered!!")
@@ -127,12 +105,12 @@ func (ah *AuthHandle) registerPostHandle(
 
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 
-	return nil
+	return asCaller(), nil
 }
 
 func (ah *AuthHandle) loginHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	errMsg, succMsg := GetMessages(w, r)
 
 	data := map[string]any{
@@ -141,26 +119,24 @@ func (ah *AuthHandle) loginHandle(
 		"errMsg":        errMsg,
 		"succMsg":       succMsg,
 	}
-
-	return renderView(
-		w, r, asCaller(), ah.logger, "login.tmpl", data,
-	)
+	return asCaller(), tmpl.ExecuteTemplate(w, "login.tmpl", data)
 }
 
 func (ah *AuthHandle) loginPostHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	email := strings.Trim(r.FormValue("email"), " ")
 	password := strings.Trim(r.FormValue("password"), " ")
 	tzone := r.Header.Get("X-Timezone")
 
+	// Simple server-side validation...
 	if email == "" || password == "" {
 		fm := []byte("Fields cannot be empty")
 		SetFlash(w, "error", fm)
 
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 
-		return nil
+		return asCaller(), nil
 	}
 
 	// Authentication goes here
@@ -168,16 +144,9 @@ func (ah *AuthHandle) loginPostHandle(
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			// "no such table" is the error that SQLite3 produces
-			// when some table does not exist, and we have only
-			// used it as an example of the errors that can be caught.
-			// Here you can add the errors that you are interested
-			// in throwing as `500` codes.
-			return apiError{
-				message: "error 500: database temporarily out of service",
+			return asCaller(), apiError{
 				status:  http.StatusInternalServerError,
-				handler: asCaller(),
-				logger:  ah.logger,
+				message: "error 500: database temporarily out of service",
 			}
 		}
 		if strings.Contains(err.Error(), "no rows in result set") {
@@ -189,7 +158,7 @@ func (ah *AuthHandle) loginPostHandle(
 
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 
-		return nil
+		return asCaller(), nil
 	}
 
 	err = bcrypt.CompareHashAndPassword(
@@ -203,17 +172,15 @@ func (ah *AuthHandle) loginPostHandle(
 
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 
-		return nil
+		return asCaller(), nil
 	}
 
 	// Create JWT
 	signedToken, err := jwt.CreateNewAuthToken(user.ID, user.Username, tzone)
 	if err != nil {
-		return apiError{
-			message: fmt.Sprintf("error 500: could not get the JWT: %s", err),
+		return asCaller(), apiError{
 			status:  http.StatusInternalServerError,
-			handler: asCaller(),
-			logger:  ah.logger,
+			message: fmt.Sprintf("error 500: could not get the JWT: %s", err),
 		}
 	}
 
@@ -232,12 +199,12 @@ func (ah *AuthHandle) loginPostHandle(
 
 	http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-	return nil
+	return asCaller(), nil
 }
 
 func (ah *AuthHandle) logoutHandle(
 	w http.ResponseWriter, r *http.Request,
-) error {
+) (string, error) {
 	dc := &http.Cookie{
 		Name:    "jwt",
 		Path:    "/",
@@ -252,5 +219,5 @@ func (ah *AuthHandle) logoutHandle(
 
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 
-	return nil
+	return asCaller(), nil
 }
