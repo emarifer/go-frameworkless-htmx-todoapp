@@ -159,21 +159,21 @@ func SetupRoutes(
 	}
 
 	// unprotected pages middlewares
-	fp := []middleware{flagMiddleware}
+	up := []middleware{flagMiddleware}
 	// protected pages middlewares
 	p := []middleware{flagMiddleware, authMiddleware}
 
 	ad := newAdapterHandle(l, ah.homeHandle)
 	// "/{$}" only matches the slash
-	m.Handle("GET /{$}", chainingMiddleware(ad, fp...))
+	m.Handle("GET /{$}", chainingMiddleware(ad, up...))
 
 	ad = newAdapterHandle(l, ah.registerHandle)
-	m.Handle("GET /register", chainingMiddleware(ad, fp...))
+	m.Handle("GET /register", chainingMiddleware(ad, up...))
 	ad = newAdapterHandle(l, ah.registerPostHandle)
 	m.Handle("POST /register", chainingMiddleware(ad))
 
 	ad = newAdapterHandle(l, ah.loginHandle)
-	m.Handle("GET /login", chainingMiddleware(ad, fp...))
+	m.Handle("GET /login", chainingMiddleware(ad, up...))
 	ad = newAdapterHandle(l, ah.loginPostHandle)
 	m.Handle("POST /login", chainingMiddleware(ad))
 	ad = newAdapterHandle(l, ah.logoutHandle)
@@ -194,5 +194,5 @@ func SetupRoutes(
 
 	ad = newAdapterHandle(l, notFoundHandle)
 	// "/" matches anything
-	m.Handle("/", chainingMiddleware(ad, fp...))
+	m.Handle("/", chainingMiddleware(ad, up...))
 }

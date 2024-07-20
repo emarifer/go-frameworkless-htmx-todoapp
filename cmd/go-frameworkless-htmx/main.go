@@ -31,6 +31,8 @@ func main() {
 
 	logger.Info("🚀 Listening on :3000…")
 
+	// Since ServeMux implements the http.Handler interface
+	// we can hardcode (casting) the mux variable as of type http.Handler
 	var s http.Handler = mux
 
 	wrapped := handlers.LatencyLoggingMiddleware(s)

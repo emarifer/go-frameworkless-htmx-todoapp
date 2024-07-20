@@ -6,7 +6,7 @@
 
 <hr />
 
-![GitHub License](https://img.shields.io/github/license/emarifer/go-echo-templ-htmx) ![Static Badge](https://img.shields.io/badge/Go-%3E=1.18-blue)
+![GitHub License](https://img.shields.io/github/license/emarifer/go-frameworkless-htmx-todoapp) ![Static Badge](https://img.shields.io/badge/Go-%3E=1.22-blue)
 
 </div>
 
