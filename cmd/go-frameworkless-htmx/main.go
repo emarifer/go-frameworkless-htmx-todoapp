@@ -14,11 +14,11 @@ import (
 func main() {
 	logger := slog.New(prettylog.NewHandler(nil))
 
-	mux := http.NewServeMux()
+	router := http.NewServeMux()
 
 	// Setting the static file service (assets)
 	fs := http.FileServer(http.Dir("./assets"))
-	mux.Handle("/assets/", http.StripPrefix("/assets/", fs))
+	router.Handle("/assets/", http.StripPrefix("/assets/", fs))
 
 	// Dependency injection
 	us := services.NewUserService(services.User{}, db.GetDB(logger))
@@ -27,17 +27,22 @@ func main() {
 	ts := services.NewTodoService(services.Todo{}, db.GetDB(logger))
 	th := handlers.NewTodoHandle(ts)
 
-	handlers.SetupRoutes(mux, logger, ah, th)
+	handlers.LoadRoutes(router, ah, th)
+
+	stack := handlers.CreateStack(
+		handlers.NewLogging(logger).LoggingMiddleware,
+		handlers.FlagMiddleware,
+		handlers.AuthMiddleware,
+	)
+
+	server := http.Server{
+		Addr:    ":3000",
+		Handler: stack(router),
+	}
 
 	logger.Info("🚀 Listening on :3000…")
 
-	// Since ServeMux implements the http.Handler interface
-	// we can hardcode (casting) the mux variable as of type http.Handler
-	var s http.Handler = mux
-
-	wrapped := handlers.LatencyLoggingMiddleware(s)
-
-	log.Fatal(http.ListenAndServe(":3000", wrapped))
+	log.Fatal(server.ListenAndServe())
 }
 
 /* REFERENCES:
@@ -73,17 +78,10 @@ https://medium.com/@matryer/writing-middleware-in-golang-and-how-go-makes-it-so-
 https://medium.com/@volodymyr.ladnik/adding-middleware-support-for-servemux-in-golang-fcc5f3901a26
 https://www.jvt.me/posts/2023/09/01/golang-nethttp-global-middleware/
 https://refactoring.guru/design-patterns/adapter/go/example
+
+21-07-2024:
+https://github.com/dreamsofcode-io/nethttp
+
+Don’t Make This Mistake with Go HTTP Servers:
+https://ryanc118.medium.com/dont-make-this-mistake-with-go-http-servers-bd313baee41
 */
-
-// func serveTemplate(w http.ResponseWriter, r *http.Request) {
-// 	lp := filepath.Join("views", "layout.html")
-// 	fp := filepath.Join("views", filepath.Clean(r.URL.Path))
-
-// 	data := map[string]any{
-// 		"title": "Todo List",
-// 		"name":  "Enrique Marín",
-// 	}
-
-// 	tmpl, _ := template.ParseFiles(lp, fp)
-// 	tmpl.ExecuteTemplate(w, "layout", data)
-// }

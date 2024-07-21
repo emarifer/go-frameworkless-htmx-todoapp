@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -10,14 +11,42 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// authMiddleware is a handler that verifies if the token
+// Middleware is a definition of what a middleware is,
+// take in one type Handler interface and
+// wrap it within another Handler interface
+type Middleware func(http.Handler) http.Handler
+
+// CreateStack chains the middlewares that
+// we pass to it in a slice wrapping the handle
+// that we pass as the first parameter.
+// This function allows us, therefore, to add as many middlewares
+// as we want (included in a slice) that wrap our handler
+// without the code becoming cumbersome to read.
+func CreateStack(xs ...Middleware) Middleware {
+	return func(next http.Handler) http.Handler {
+		for i := len(xs) - 1; i >= 0; i-- {
+			x := xs[i]
+			next = x(next)
+		}
+
+		return next
+	}
+}
+
+// AuthMiddleware is a handler that verifies if the token
 // exists (in a cookie) and if it is invalid (due to the
 // signature not being verified or having expired).
 // If the jsonwebtoken is valid, it extracts the user data
 // and injects it with the context of the request
 // that will be passed to the next handler in the chain.
-func authMiddleware(next http.Handler) http.Handler {
+func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if p == "/" || p == "/register" || p == "/login" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Get the JWT(cookie) by name
 		cookie, err := r.Cookie("jwt")
 		if err != nil {
@@ -72,14 +101,14 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// flagMiddleware is middleware for unprotected routes
+// FlagMiddleware is middleware for unprotected routes
 // that manages a boolean flag (fromProtected) for
 // conditional rendering on the pages corresponding to said routes.
 // Checks if the user is authenticated: if it is, inject
 // the fromProtected flag into the context to true, false otherwise.
 // Basically, this flag is intended to prevent
 // an authenticated user from logging in/registering again.
-func flagMiddleware(next http.Handler) http.Handler {
+func FlagMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the JWT(cookie) by name
 		cookie, err := r.Cookie("jwt")
@@ -130,10 +159,70 @@ func flagMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func LatencyLoggingMiddleware(next http.Handler) http.Handler {
+type logging struct {
+	l *slog.Logger
+}
+
+func NewLogging(l *slog.Logger) *logging {
+	return &logging{l}
+}
+
+type wrappedWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *wrappedWriter) WriteHeader(statusCode int) {
+	w.ResponseWriter.WriteHeader(statusCode)
+	w.statusCode = statusCode
+}
+
+func (lg *logging) LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("latency_human: %v", time.Since(start))
+
+		wrapped := &wrappedWriter{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK,
+		}
+
+		next.ServeHTTP(wrapped, r)
+
+		handler := ""
+		errMsg := ""
+		if h, ok := wrapped.Header()[HEADER_KEY_HANDLER]; ok {
+			handler = h[0]
+		}
+		if e, ok := wrapped.Header()[HEADER_KEY_ERRMSG]; ok {
+			errMsg = e[0]
+		}
+		if errMsg != "" {
+			lg.l.Error(
+				"🔴 Handler Error",
+				"error", errMsg,
+				"handler", handler,
+				"host", r.Host,
+				"latency", fmt.Sprintf(
+					"%.2fμs", float64(time.Since(start).Nanoseconds())/1000,
+				),
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", wrapped.statusCode,
+				"user_agent", r.Header.Get("User-Agent"),
+			)
+			return
+		}
+
+		lg.l.Info(
+			"🔵 Handler Info",
+			"handler", handler,
+			"host", r.Host,
+			"latency", fmt.Sprintf(
+				"%.2fμs", float64(time.Since(start).Nanoseconds())/1000,
+			),
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", wrapped.statusCode,
+			"user_agent", r.Header.Get("User-Agent"))
 	})
 }

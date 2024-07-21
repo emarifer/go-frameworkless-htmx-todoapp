@@ -34,7 +34,8 @@
                 </td>
                 {{ $path := printf "/edit?id=%d" .ID }}
                 <td class="flex justify-center gap-2">
-                    <a href={{ $path }} hx-swap="transition:true" class="badge badge-primary p-3 hover:scale-[1.1]">
+                    <a href={{ $path }} hx-swap="transition:true" class="badge badge-primary p-3 hover:scale-[1.1]"
+                        hx-target-error="body">
                         Edit
                     </a>
                     <button hx-delete={{ printf "/delete?id=%d" .ID }} hx-confirm={{
@@ -54,7 +55,8 @@
                                     }).then((result) => {
                                         if(result.isConfirmed) e.detail.issueRequest(true);
                                     })
-                                })" hx-target="body" class="badge badge-error p-3 hover:scale-[1.1]">
+                                })" hx-target="body" hx-target-error="body"
+                        class="badge badge-error p-3 hover:scale-[1.1]">
                         Delete
                     </button>
                 </td>

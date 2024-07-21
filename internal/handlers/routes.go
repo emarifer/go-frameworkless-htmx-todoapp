@@ -2,39 +2,20 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"html/template"
-	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
 	"time"
 )
 
+const (
+	HEADER_KEY_HANDLER = "X-Handler"
+	HEADER_KEY_ERRMSG  = "X-Errmsg"
+)
+
 var tmpl *template.Template
-
-// middleware is a definition of what a middleware is,
-// take in one type Handler interface and
-// wrap it within another Handler interface
-type middleware func(http.Handler) http.Handler
-
-// chainingMiddleware chains the middlewares that
-// we pass to it in a slice wrapping the handle
-// that we pass as the first parameter.
-// This function allows us, therefore, to add as many middlewares
-// as we want (included in a slice) that wrap our handler
-// without the code becoming cumbersome to read.
-func chainingMiddleware(h http.Handler, m ...middleware) http.Handler {
-	if len(m) < 1 {
-		return h
-	}
-
-	wrappedHandler := h
-	for i := len(m) - 1; i >= 0; i-- {
-		wrappedHandler = m[i](wrappedHandler)
-	}
-
-	return wrappedHandler
-}
 
 type apiError struct {
 	status  int
@@ -47,17 +28,7 @@ func (e apiError) Error() string {
 
 // Use as a wrapper around the handler functions.
 // Basically, they use the Adapter design pattern.
-type adapterHandle struct {
-	l *slog.Logger
-	h func(http.ResponseWriter, *http.Request) (string, error)
-}
-
-func newAdapterHandle(
-	l *slog.Logger,
-	h func(http.ResponseWriter, *http.Request) (string, error),
-) *adapterHandle {
-	return &adapterHandle{l, h}
-}
+type adapterHandle func(http.ResponseWriter, *http.Request) error
 
 // adapterHandle implements the http.Handler interface.
 // Because handlers return errors, the ServeHTTP implementation
@@ -65,43 +36,16 @@ func newAdapterHandle(
 // also performs centralized error handling in addition
 // to successfully logging the handlers' output.
 func (a adapterHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	caller, err := a.h(w, r)
+	err := a(w, r)
 	if err == nil {
-		a.l.Info(
-			"🔵 Handler Info",
-			"host", r.Host,
-			"user_agent", r.Header.Get("User-Agent"),
-			"handler", caller,
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", http.StatusOK,
-		)
 		return
 	}
 
-	if e, ok := err.(apiError); ok {
-		a.l.Error(
-			"🔴 Handler Error",
-			"host", r.Host,
-			"user_agent", r.Header.Get("User-Agent"),
-			"handler", caller,
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", e.status,
-			"error", e.message,
-		)
-
-		// We handle the case that occurs when the user logs
-		// in but cannot connect to the `todos` table of the DB.
-		if strings.Contains(caller, "todoListHandle") {
-			dc := &http.Cookie{
-				Name:    "jwt",
-				Path:    "/",
-				MaxAge:  -1,
-				Expires: time.Unix(1, 0),
-			}
-
-			http.SetCookie(w, dc)
+	var e apiError
+	if errors.As(err, &e) {
+		caller := ""
+		if h, ok := w.Header()[HEADER_KEY_HANDLER]; ok {
+			caller = h[0]
 		}
 
 		data := map[string]any{
@@ -109,14 +53,25 @@ func (a adapterHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"fromProtected": requestFromProtected(r.Context()),
 		}
 
+		if (strings.Contains(caller, "todoListHandle") ||
+			strings.Contains(caller, "createTodoPostHandle") ||
+			strings.Contains(caller, "editTodoHandle") ||
+			strings.Contains(caller, "editTodoPostHandle") ||
+			strings.Contains(caller, "deleteTodoHandle")) &&
+			e.status == 500 {
+			data["fromProtected"] = false
+		}
+
 		switch e.status {
+		case 400:
+			data["title"] = "| Error 400"
+			tmpl.ExecuteTemplate(w, "error_400.tmpl", data)
+			return
 		case 404:
-			w.WriteHeader(http.StatusNotFound)
 			data["title"] = "| Error 404"
 			tmpl.ExecuteTemplate(w, "error_404.tmpl", data)
 			return
 		case 500:
-			w.WriteHeader(http.StatusInternalServerError)
 			data["title"] = "| Error 500"
 			tmpl.ExecuteTemplate(w, "error_500.tmpl", data)
 			return
@@ -144,55 +99,40 @@ func asCaller() string {
 	return hs[len(hs)-1]
 }
 
+func clearCookie(w http.ResponseWriter) {
+	dc := &http.Cookie{
+		Name:    "jwt",
+		Path:    "/",
+		MaxAge:  -1,
+		Expires: time.Unix(1, 0),
+	}
+	http.SetCookie(w, dc)
+}
+
 // SetupRoutes starts the `tmpl` variable,
 // necessary to execute the various templates that
 // the handlers will execute, while registering
 // the routes of the various endpoints.
-func SetupRoutes(
-	m *http.ServeMux,
-	l *slog.Logger,
-	ah *AuthHandle,
-	th *TodoHandle,
-) {
+func LoadRoutes(r *http.ServeMux, ah *AuthHandle, th *TodoHandle) {
 	if tmpl == nil {
 		tmpl = template.Must(tmpl.ParseGlob("views/*.tmpl"))
 	}
 
-	// unprotected pages middlewares
-	up := []middleware{flagMiddleware}
-	// protected pages middlewares
-	p := []middleware{flagMiddleware, authMiddleware}
-
-	ad := newAdapterHandle(l, ah.homeHandle)
 	// "/{$}" only matches the slash
-	m.Handle("GET /{$}", chainingMiddleware(ad, up...))
+	r.Handle("GET /{$}", adapterHandle(ah.homeHandle))
+	r.Handle("GET /register", adapterHandle(ah.registerHandle))
+	r.Handle("POST /register", adapterHandle(ah.registerPostHandle))
+	r.Handle("GET /login", adapterHandle(ah.loginHandle))
+	r.Handle("POST /login", adapterHandle(ah.loginPostHandle))
+	r.Handle("POST /logout", adapterHandle(ah.logoutHandle))
 
-	ad = newAdapterHandle(l, ah.registerHandle)
-	m.Handle("GET /register", chainingMiddleware(ad, up...))
-	ad = newAdapterHandle(l, ah.registerPostHandle)
-	m.Handle("POST /register", chainingMiddleware(ad))
+	r.Handle("GET /todo", adapterHandle(th.todoListHandle))
+	r.Handle("GET /create", adapterHandle(th.createTodoHandle))
+	r.Handle("POST /create", adapterHandle(th.createTodoPostHandle))
+	r.Handle("GET /edit", adapterHandle(th.editTodoHandle))
+	r.Handle("POST /edit", adapterHandle(th.editTodoPostHandle))
+	r.Handle("DELETE /delete", adapterHandle(th.deleteTodoHandle))
 
-	ad = newAdapterHandle(l, ah.loginHandle)
-	m.Handle("GET /login", chainingMiddleware(ad, up...))
-	ad = newAdapterHandle(l, ah.loginPostHandle)
-	m.Handle("POST /login", chainingMiddleware(ad))
-	ad = newAdapterHandle(l, ah.logoutHandle)
-	m.Handle("POST /logout", chainingMiddleware(ad, p...))
-
-	ad = newAdapterHandle(l, th.todoListHandle)
-	m.Handle("GET /todo", chainingMiddleware(ad, p...))
-	ad = newAdapterHandle(l, th.createTodoHandle)
-	m.Handle("GET /create", chainingMiddleware(ad, p...))
-	ad = newAdapterHandle(l, th.createTodoPostHandle)
-	m.Handle("POST /create", chainingMiddleware(ad, p...))
-	ad = newAdapterHandle(l, th.editTodoHandle)
-	m.Handle("GET /edit", chainingMiddleware(ad, p...))
-	ad = newAdapterHandle(l, th.editTodoPostHandle)
-	m.Handle("POST /edit", chainingMiddleware(ad, p...))
-	ad = newAdapterHandle(l, th.deleteTodoHandle)
-	m.Handle("DELETE /delete", chainingMiddleware(ad, p...))
-
-	ad = newAdapterHandle(l, notFoundHandle)
 	// "/" matches anything
-	m.Handle("/", chainingMiddleware(ad, up...))
+	r.Handle("/", adapterHandle(notFoundHandle))
 }

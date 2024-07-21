@@ -28,7 +28,7 @@ type TodoHandle struct {
 
 func (th *TodoHandle) todoListHandle(
 	w http.ResponseWriter, r *http.Request,
-) (string, error) {
+) error {
 	errMsg, succMsg := GetMessages(w, r)
 
 	todos, err := th.todoService.GetAllTodos(requestUserData(r.Context()).ID)
@@ -40,9 +40,14 @@ func (th *TodoHandle) todoListHandle(
 			// used it as an example of the errors that can be caught.
 			// Here you can add the errors that you are interested
 			// in throwing as `500` codes.
-			return asCaller(), apiError{
+			w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+			message := "error 500: database temporarily out of service"
+			w.Header().Add(HEADER_KEY_ERRMSG, message)
+			clearCookie(w)
+			w.WriteHeader(http.StatusInternalServerError)
+			return apiError{
 				status:  http.StatusInternalServerError,
-				message: "error 500: database temporarily out of service",
+				message: message,
 			}
 		}
 	}
@@ -60,24 +65,26 @@ func (th *TodoHandle) todoListHandle(
 		"errMsg":        errMsg,
 		"succMsg":       succMsg,
 	}
-	return asCaller(), tmpl.ExecuteTemplate(w, "todo_list.tmpl", data)
+	w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+	return tmpl.ExecuteTemplate(w, "todo_list.tmpl", data)
 }
 
 func (th *TodoHandle) createTodoHandle(
 	w http.ResponseWriter, r *http.Request,
-) (string, error) {
+) error {
 
 	data := map[string]any{
 		"title":         "| Create Todo",
 		"fromProtected": true,
 		"username":      upper.Cap(requestUserData(r.Context()).Username),
 	}
-	return asCaller(), tmpl.ExecuteTemplate(w, "todo_create.tmpl", data)
+	w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+	return tmpl.ExecuteTemplate(w, "todo_create.tmpl", data)
 }
 
 func (th *TodoHandle) createTodoPostHandle(
 	w http.ResponseWriter, r *http.Request,
-) (string, error) {
+) error {
 	newTodo := services.Todo{
 		CreatedBy:   requestUserData(r.Context()).ID,
 		Title:       strings.Trim(r.FormValue("title"), " "),
@@ -89,18 +96,24 @@ func (th *TodoHandle) createTodoPostHandle(
 		fm := []byte("Task title empty!!")
 		SetFlash(w, "error", fm)
 
+		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
 		http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-		return asCaller(), nil
+		return nil
 	}
 
 	_, err := th.todoService.CreateTodo(newTodo)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			return asCaller(), apiError{
+			w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+			message := "error 500: database temporarily out of service"
+			w.Header().Add(HEADER_KEY_ERRMSG, message)
+			clearCookie(w)
+			w.WriteHeader(http.StatusInternalServerError)
+			return apiError{
 				status:  http.StatusInternalServerError,
-				message: "error 500: database temporarily out of service",
+				message: message,
 			}
 		}
 	}
@@ -108,21 +121,25 @@ func (th *TodoHandle) createTodoPostHandle(
 	fm := []byte("Task successfully created!!")
 	SetFlash(w, "success", fm)
 
+	w.Header().Add(HEADER_KEY_HANDLER, asCaller())
 	http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-	return asCaller(), nil
+	return nil
 }
 
 func (th *TodoHandle) editTodoHandle(
 	w http.ResponseWriter, r *http.Request,
-) (string, error) {
+) error {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		msg := fmt.Sprintf("Go could not convert to integer: %s", err)
-		return asCaller(), apiError{
-			status:  http.StatusInternalServerError,
-			message: msg,
+		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+		message := fmt.Sprintf("Go could not convert to integer: %s", err)
+		w.Header().Add(HEADER_KEY_ERRMSG, message)
+		w.WriteHeader(http.StatusBadRequest)
+		return apiError{
+			status:  http.StatusBadRequest,
+			message: message,
 		}
 	}
 
@@ -139,18 +156,24 @@ func (th *TodoHandle) editTodoHandle(
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			return asCaller(), apiError{
+			w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+			message := "error 500: database temporarily out of service"
+			w.Header().Add(HEADER_KEY_ERRMSG, message)
+			clearCookie(w)
+			w.WriteHeader(http.StatusInternalServerError)
+			return apiError{
 				status:  http.StatusInternalServerError,
-				message: "error 500: database temporarily out of service",
+				message: message,
 			}
 		}
 		msg := fmt.Sprintf("something went wrong:%s", err)
 		fm := []byte(msg)
 		SetFlash(w, "error", fm)
 
+		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
 		http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-		return asCaller(), nil
+		return nil
 	}
 
 	data := map[string]any{
@@ -163,19 +186,22 @@ func (th *TodoHandle) editTodoHandle(
 		"taskStatus":    todo.Status,
 		"createdAt":     services.ConvertDateTime(tzone, todo.CreatedAt),
 	}
-	return asCaller(), tmpl.ExecuteTemplate(w, "todo_update.tmpl", data)
+	return tmpl.ExecuteTemplate(w, "todo_update.tmpl", data)
 }
 
 func (th *TodoHandle) editTodoPostHandle(
 	w http.ResponseWriter, r *http.Request,
-) (string, error) {
+) error {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		msg := fmt.Sprintf("Go could not convert to integer: %s", err)
-		return asCaller(), apiError{
-			status:  http.StatusInternalServerError,
-			message: msg,
+		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+		message := fmt.Sprintf("Go could not convert to integer: %s", err)
+		w.Header().Add(HEADER_KEY_ERRMSG, message)
+		w.WriteHeader(http.StatusBadRequest)
+		return apiError{
+			status:  http.StatusBadRequest,
+			message: message,
 		}
 	}
 
@@ -198,37 +224,50 @@ func (th *TodoHandle) editTodoPostHandle(
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			return asCaller(), apiError{
+			w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+			message := "error 500: database temporarily out of service"
+			w.Header().Add(HEADER_KEY_ERRMSG, message)
+			clearCookie(w)
+			w.WriteHeader(http.StatusInternalServerError)
+			return apiError{
 				status:  http.StatusInternalServerError,
-				message: "error 500: database temporarily out of service",
+				message: message,
 			}
 		}
-		return asCaller(), apiError{
-			status: http.StatusInternalServerError,
-			message: fmt.Sprintf(
-				"error 500: task could not be updated: %s", err,
-			),
+		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+		message := fmt.Sprintf(
+			"error 500: task could not be updated: %s", err,
+		)
+		w.Header().Add(HEADER_KEY_ERRMSG, message)
+		w.WriteHeader(http.StatusInternalServerError)
+		return apiError{
+			status:  http.StatusInternalServerError,
+			message: message,
 		}
 	}
 
 	fm := []byte("Task successfully updated!!")
 	SetFlash(w, "success", fm)
 
+	w.Header().Add(HEADER_KEY_HANDLER, asCaller())
 	http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-	return asCaller(), nil
+	return nil
 }
 
 func (th *TodoHandle) deleteTodoHandle(
 	w http.ResponseWriter, r *http.Request,
-) (string, error) {
+) error {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		msg := fmt.Sprintf("Go could not convert to integer: %s", err)
-		return asCaller(), apiError{
-			status:  http.StatusInternalServerError,
-			message: msg,
+		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+		message := fmt.Sprintf("Go could not convert to integer: %s", err)
+		w.Header().Add(HEADER_KEY_ERRMSG, message)
+		w.WriteHeader(http.StatusBadRequest)
+		return apiError{
+			status:  http.StatusBadRequest,
+			message: message,
 		}
 	}
 
@@ -241,25 +280,34 @@ func (th *TodoHandle) deleteTodoHandle(
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") ||
 			strings.Contains(err.Error(), "database is locked") {
-			return asCaller(), apiError{
+			w.Header().Add(HEADER_KEY_HANDLER, asCaller())
+			message := "error 500: database temporarily out of service"
+			w.Header().Add(HEADER_KEY_ERRMSG, message)
+			clearCookie(w)
+			w.WriteHeader(http.StatusInternalServerError)
+			return apiError{
 				status:  http.StatusInternalServerError,
-				message: "error 500: database temporarily out of service",
+				message: message,
 			}
 		}
+
+		fmt.Println("Error Delete", err)
 
 		msg := fmt.Sprintf("something went wrong:%s", err)
 		fm := []byte(msg)
 		SetFlash(w, "error", fm)
 
+		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
 		http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-		return asCaller(), nil
+		return nil
 	}
 
 	fm := []byte("Task successfully deleted!!")
 	SetFlash(w, "success", fm)
 
+	w.Header().Add(HEADER_KEY_HANDLER, asCaller())
 	http.Redirect(w, r, "/todo", http.StatusSeeOther)
 
-	return asCaller(), nil
+	return nil
 }
