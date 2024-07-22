@@ -159,6 +159,10 @@ func FlagMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// logging is a structure to support the `LoggingMiddleware` middleware
+// and be able to pass it (as a method receiver)
+// the `*slog.Logger` pointer without altering
+// the middleware signature [func(http.Handler) http.Handler].
 type logging struct {
 	l *slog.Logger
 }
@@ -167,6 +171,9 @@ func NewLogging(l *slog.Logger) *logging {
 	return &logging{l}
 }
 
+// wrappedWriter is a wrapper on top of `ResponseWriter`
+// with an additional field to store
+// the `statusCode` so it can be retrieved later.
 type wrappedWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -177,13 +184,16 @@ func (w *wrappedWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
 
+// LoggingMiddleware is the middleware that wraps the others
+// and collects all the info/error sent by the handlers
+// and traverses the middleware stack to log it.
 func (lg *logging) LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
 		wrapped := &wrappedWriter{
 			ResponseWriter: w,
-			statusCode:     http.StatusOK,
+			statusCode:     http.StatusOK, // default status
 		}
 
 		next.ServeHTTP(wrapped, r)
@@ -207,7 +217,7 @@ func (lg *logging) LoggingMiddleware(next http.Handler) http.Handler {
 				),
 				"method", r.Method,
 				"path", r.URL.Path,
-				"status", wrapped.statusCode,
+				"status", wrapped.statusCode, // ResponseWriter with statusCode
 				"user_agent", r.Header.Get("User-Agent"),
 			)
 			return

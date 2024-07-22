@@ -43,6 +43,11 @@ func (th *TodoHandle) todoListHandle(
 			w.Header().Add(HEADER_KEY_HANDLER, asCaller())
 			message := "error 500: database temporarily out of service"
 			w.Header().Add(HEADER_KEY_ERRMSG, message)
+			// The user is automatically logged out,
+			// since it makes no sense that, if he cannot
+			// access the `todos` table, he can access the protected routes.
+			// In your application you can handle
+			// this situation as best suits you.
 			clearCookie(w)
 			w.WriteHeader(http.StatusInternalServerError)
 			return apiError{
@@ -234,16 +239,14 @@ func (th *TodoHandle) editTodoPostHandle(
 				message: message,
 			}
 		}
+		msg := fmt.Sprintf("something went wrong:%s", err)
+		fm := []byte(msg)
+		SetFlash(w, "error", fm)
+
 		w.Header().Add(HEADER_KEY_HANDLER, asCaller())
-		message := fmt.Sprintf(
-			"error 500: task could not be updated: %s", err,
-		)
-		w.Header().Add(HEADER_KEY_ERRMSG, message)
-		w.WriteHeader(http.StatusInternalServerError)
-		return apiError{
-			status:  http.StatusInternalServerError,
-			message: message,
-		}
+		http.Redirect(w, r, "/todo", http.StatusSeeOther)
+
+		return nil
 	}
 
 	fm := []byte("Task successfully updated!!")
@@ -290,8 +293,6 @@ func (th *TodoHandle) deleteTodoHandle(
 				message: message,
 			}
 		}
-
-		fmt.Println("Error Delete", err)
 
 		msg := fmt.Sprintf("something went wrong:%s", err)
 		fm := []byte(msg)

@@ -17,7 +17,7 @@ func main() {
 	router := http.NewServeMux()
 
 	// Setting the static file service (assets)
-	fs := http.FileServer(http.Dir("./assets"))
+	fs := http.FileServer(http.Dir("assets"))
 	router.Handle("/assets/", http.StripPrefix("/assets/", fs))
 
 	// Dependency injection
@@ -27,22 +27,22 @@ func main() {
 	ts := services.NewTodoService(services.Todo{}, db.GetDB(logger))
 	th := handlers.NewTodoHandle(ts)
 
-	handlers.LoadRoutes(router, ah, th)
+	handlers.LoadRoutes(logger, router, ah, th)
 
-	stack := handlers.CreateStack(
-		handlers.NewLogging(logger).LoggingMiddleware,
-		handlers.FlagMiddleware,
-		handlers.AuthMiddleware,
-	)
+	// stack := handlers.CreateStack(
+	// 	handlers.NewLogging(logger).LoggingMiddleware,
+	// 	handlers.FlagMiddleware,
+	// 	handlers.AuthMiddleware,
+	// )
 
-	server := http.Server{
-		Addr:    ":3000",
-		Handler: stack(router),
-	}
+	// server := http.Server{
+	// 	Addr:    ":3000",
+	// 	Handler: stack(router),
+	// }
 
 	logger.Info("🚀 Listening on :3000…")
 
-	log.Fatal(server.ListenAndServe())
+	log.Fatal(http.ListenAndServe(":3000", router))
 }
 
 /* REFERENCES:

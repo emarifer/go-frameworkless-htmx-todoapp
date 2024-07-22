@@ -17,7 +17,7 @@
 
 <hr />
 
-### 🤔 Explanation
+### 🤔 Why is (almost) all you need is the standard library?
 
 In the world of Go, the Unix philosophy is followed which says:
 
@@ -25,7 +25,7 @@ In the world of Go, the Unix philosophy is followed which says:
 - Write programs to work together.
 - Write programs to handle text streams because that is a universal interface.
 
-This is why Go users tend to shy away from using (perhaps abusing) frameworks and libraries. This way of thinking has one result: our project is more stable and maintainable. You can find these more developed ideas in this [post](https://threedots.tech/post/best-go-framework/).
+This is why Go users tend to avoid using (perhaps abusing) frameworks and libraries. This way of thinking has one result: our project is more stable and maintainable. You can find these ideas more developed in this [post](https://threedots.tech/post/best-go-framework/). All of this is more true since version `v.1.22` of Go was released, in which notable improvements in the `net/http` package allow advanced routing techniques that until now we could only achieve comfortably through the use of other libraries.
 
 <div align="center">
 

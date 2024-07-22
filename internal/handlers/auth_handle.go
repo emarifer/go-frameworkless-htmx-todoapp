@@ -220,14 +220,7 @@ func (ah *AuthHandle) loginPostHandle(
 func (ah *AuthHandle) logoutHandle(
 	w http.ResponseWriter, r *http.Request,
 ) error {
-	dc := &http.Cookie{
-		Name:    "jwt",
-		Path:    "/",
-		MaxAge:  -1,
-		Expires: time.Unix(1, 0),
-	}
-
-	http.SetCookie(w, dc)
+	clearCookie(w)
 
 	fm := []byte("You have successfully logged out!!")
 	SetFlash(w, "success", fm)
