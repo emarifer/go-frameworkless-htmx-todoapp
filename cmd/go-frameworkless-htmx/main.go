@@ -27,22 +27,23 @@ func main() {
 	ts := services.NewTodoService(services.Todo{}, db.GetDB(logger))
 	th := handlers.NewTodoHandle(ts)
 
-	handlers.LoadRoutes(logger, router, ah, th)
+	handlers.LoadRoutes(router, ah, th)
 
-	// stack := handlers.CreateStack(
-	// 	handlers.NewLogging(logger).LoggingMiddleware,
-	// 	handlers.FlagMiddleware,
-	// 	handlers.AuthMiddleware,
-	// )
+	// Set of middlwares ordered from the most external to the most internal.
+	stack := handlers.CreateStack(
+		handlers.NewLogging(logger).LoggingMiddleware,
+		handlers.FlagMiddleware,
+		handlers.AuthMiddleware,
+	)
 
-	// server := http.Server{
-	// 	Addr:    ":3000",
-	// 	Handler: stack(router),
-	// }
+	server := http.Server{
+		Addr:    ":3000",
+		Handler: stack(router),
+	}
 
 	logger.Info("🚀 Listening on :3000…")
 
-	log.Fatal(http.ListenAndServe(":3000", router))
+	log.Fatal(server.ListenAndServe())
 }
 
 /* REFERENCES:

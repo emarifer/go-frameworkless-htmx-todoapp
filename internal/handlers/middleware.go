@@ -41,8 +41,10 @@ func CreateStack(xs ...Middleware) Middleware {
 // that will be passed to the next handler in the chain.
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Excludes everything other than this from the middleware action.
+		// It also refers to the routes corresponding to the assets.
 		p := r.URL.Path
-		if p == "/" || p == "/register" || p == "/login" {
+		if p != "/todo" && p != "/create" && p != "/edit" && p != "/logout" {
 			next.ServeHTTP(w, r)
 			return
 		}

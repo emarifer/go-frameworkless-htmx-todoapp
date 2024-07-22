@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
-	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
@@ -122,39 +121,26 @@ func clearCookie(w http.ResponseWriter) {
 // necessary to execute the various templates that
 // the handlers will execute, while registering
 // the routes of the various endpoints.
-func LoadRoutes(
-	l *slog.Logger, r *http.ServeMux, ah *AuthHandle, th *TodoHandle,
-) {
+func LoadRoutes(r *http.ServeMux, ah *AuthHandle, th *TodoHandle) {
 	if tmpl == nil {
 		tmpl = template.Must(tmpl.ParseGlob("views/*.tmpl"))
 	}
 
-	// global middleware stack
-	s := CreateStack(
-		NewLogging(l).LoggingMiddleware,
-		FlagMiddleware,
-		AuthMiddleware,
-	)
 	// "/{$}" only matches the slash
-	r.Handle("GET /{$}", s(adapterHandle(ah.homeHandle)))
-	r.Handle("GET /register", s(adapterHandle(ah.registerHandle)))
-	r.Handle("POST /register", s(adapterHandle(ah.registerPostHandle)))
-	r.Handle("GET /login", s(adapterHandle(ah.loginHandle)))
-	r.Handle("POST /login", s(adapterHandle(ah.loginPostHandle)))
-	r.Handle("POST /logout", s(adapterHandle(ah.logoutHandle)))
+	r.Handle("GET /{$}", adapterHandle(ah.homeHandle))
+	r.Handle("GET /register", adapterHandle(ah.registerHandle))
+	r.Handle("POST /register", adapterHandle(ah.registerPostHandle))
+	r.Handle("GET /login", adapterHandle(ah.loginHandle))
+	r.Handle("POST /login", adapterHandle(ah.loginPostHandle))
+	r.Handle("POST /logout", adapterHandle(ah.logoutHandle))
 
-	r.Handle("GET /todo", s(adapterHandle(th.todoListHandle)))
-	r.Handle("GET /create", s(adapterHandle(th.createTodoHandle)))
-	r.Handle("POST /create", s(adapterHandle(th.createTodoPostHandle)))
-	r.Handle("GET /edit", s(adapterHandle(th.editTodoHandle)))
-	r.Handle("POST /edit", s(adapterHandle(th.editTodoPostHandle)))
-	r.Handle("DELETE /delete", s(adapterHandle(th.deleteTodoHandle)))
+	r.Handle("GET /todo", adapterHandle(th.todoListHandle))
+	r.Handle("GET /create", adapterHandle(th.createTodoHandle))
+	r.Handle("POST /create", adapterHandle(th.createTodoPostHandle))
+	r.Handle("GET /edit", adapterHandle(th.editTodoHandle))
+	r.Handle("POST /edit", adapterHandle(th.editTodoPostHandle))
+	r.Handle("DELETE /delete", adapterHandle(th.deleteTodoHandle))
 
-	// middleware stack without AuthMiddleware
-	nfs := CreateStack(
-		NewLogging(l).LoggingMiddleware,
-		FlagMiddleware,
-	)
 	// "/" matches anything
-	r.Handle("/", nfs(adapterHandle(notFoundHandle)))
+	r.Handle("/", adapterHandle(notFoundHandle))
 }
