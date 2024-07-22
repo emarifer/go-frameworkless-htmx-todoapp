@@ -17,7 +17,7 @@
 
 <hr />
 
-### 🤔 Why is (almost) all you need is the standard library?
+### 🤔 Why is (almost) all you need is the standard library?&nbsp;<img src="assets/img/gopher-dance-long-3x.gif" width="50" align="center">
 
 In the world of Go, the Unix philosophy is followed which says:
 
