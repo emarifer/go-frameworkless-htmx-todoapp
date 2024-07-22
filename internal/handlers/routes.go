@@ -34,8 +34,7 @@ type adapterHandle func(http.ResponseWriter, *http.Request) error
 // adapterHandle implements the http.Handler interface.
 // Because handlers return errors, the ServeHTTP implementation
 // handles errors based on their type. Therefore, this function
-// also performs centralized error handling in addition
-// to successfully logging the handlers' output.
+// also performs centralized error handling.
 func (a adapterHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := a(w, r)
 	if err == nil {
