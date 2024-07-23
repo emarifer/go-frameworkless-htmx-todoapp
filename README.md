@@ -78,11 +78,11 @@ Finally, minimal use of [_hyperscript](https://hyperscript.org/) is made to achi
 ### Features 🚀
 
 - [x] **Use of "native" middlewares:** Middleware chaining has been solved with an elegant and reusable solution to avoid having to wrap one middleware inside another if your application requires many of them.
-- [x] **Centralized error management:** Middleware is also used to handle errors centrally.
+- [x] **Centralized error management:** Middleware is also used to handle errors centrally. More specifically, since handlers are what return an error, the Adapter design pattern is used when implementing the ServeHTTP method (of the http.Handler interface), which handles errors.
 - [x] **Flash Messages:** They give the user information about the result of their actions (success/error). No third-party library is used to implement this feature.
-- [x] **Using Go's native templating engine:** Although the `A-H/Templ` library allows type checking of the data we pass to our templates, I believe that even medium-sized projects the security/coding speed ratio is more favorable with native Go templates.
+- [x] **Using Go's native templating engine:** Although the `a-h/templ` [library](https://github.com/a-h/templ) allows type checking of the data we pass to our templates, I believe that even medium-sized projects the security/coding speed ratio is more favorable with native Go templates... and with zero dependencies.
 - [x] **Authentication with JWT:** which frees the server from saving user data (in memory or in DB). Furthermore, the library used does not have indirect dependencies.
-- [x] **Structured Logging with slog:** I have "wrapped" the API of the `slog` package to customizing it and make it prettier. The "outputs" (template renders or errors) of the handlers are attached with the logger.
+- [x] **Structured Logging with slog:** I have "wrapped" the API of the `slog` package to customizing it and make it prettier. The logger prints both the output of the handlers or their result completed with an error, as well as the information related to the application's assets.
 - [x] **Using the JavaScript library for front-end `htmx`:** Obtained via their CDN.
 - [x] **Using interfaces in the `services` package:** The architecture follows a typical "onion model" where each layer doesn't know about the layer above it, and each layer is responsible for a specific thing, in this case, the `services` (package) layer, which allows for better separation of responsibilities and `dependency injection`.
 
