@@ -41,7 +41,7 @@ func main() {
 		Handler: stack(router),
 	}
 
-	logger.Info("🚀 Listening on :3000…")
+	logger.Info("🚀 Server Info: listening on :3000…")
 
 	log.Fatal(server.ListenAndServe())
 }

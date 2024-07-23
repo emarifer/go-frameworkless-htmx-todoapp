@@ -208,33 +208,29 @@ func (lg *logging) LoggingMiddleware(next http.Handler) http.Handler {
 		if e, ok := wrapped.Header()[HEADER_KEY_ERRMSG]; ok {
 			errMsg = e[0]
 		}
-		if errMsg != "" {
-			lg.l.Error(
-				"🔴 Handler Error",
-				"error", errMsg,
-				"handler", handler,
-				"host", r.Host,
-				"latency", fmt.Sprintf(
-					"%.2fμs", float64(time.Since(start).Nanoseconds())/1000,
-				),
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", wrapped.statusCode, // ResponseWriter with statusCode
-				"user_agent", r.Header.Get("User-Agent"),
-			)
-			return
-		}
 
-		lg.l.Info(
-			"🔵 Handler Info",
-			"handler", handler,
+		dataLog := []any{
 			"host", r.Host,
 			"latency", fmt.Sprintf(
 				"%.2fμs", float64(time.Since(start).Nanoseconds())/1000,
 			),
 			"method", r.Method,
 			"path", r.URL.Path,
-			"status", wrapped.statusCode,
-			"user_agent", r.Header.Get("User-Agent"))
+			"status", wrapped.statusCode, // ResponseWriter with statusCode
+			"user_agent", r.Header.Get("User-Agent"),
+		}
+		if errMsg != "" {
+			dataLog = append(dataLog, "error", errMsg, "handler", handler)
+			lg.l.Error("🔴 Handler Error", dataLog...)
+			return
+		}
+
+		if handler == "" {
+			lg.l.Info("📂 Assets Info", dataLog...)
+			return
+		}
+
+		dataLog = append(dataLog, "handler", handler)
+		lg.l.Info("🔵 Handler Info", dataLog...)
 	})
 }

@@ -17,7 +17,7 @@
 
 <hr />
 
-### 🤔 Why is (almost) all you need is the standard library?&nbsp;<img src="assets/img/gopher-dance-long-3x.gif" width="50" align="center">
+### 🤔 Why is the standard library all you need? (or almost)&nbsp;<img src="assets/img/gopher-dance-long-3x.gif" width="50" align="center">
 
 In the world of Go, the Unix philosophy is followed which says:
 
@@ -92,7 +92,7 @@ Finally, minimal use of [_hyperscript](https://hyperscript.org/) is made to achi
 
 <div align="center">
 
-###### Console printing of the handlers logger output:
+###### Terminal showing app logger:
 
 <img src="assets/img/screenshot-10.png" width="60%" align="top">
 

@@ -20,7 +20,7 @@ func getConnection(logger *slog.Logger) (*sql.DB, error) {
 		return nil, fmt.Errorf("🔥 failed to connect to the database: %s", err)
 	}
 
-	logger.Info("🚀 Connected Successfully to the Database")
+	logger.Info("💾 Database Info: connected successfully to DB")
 
 	return db, nil
 }
