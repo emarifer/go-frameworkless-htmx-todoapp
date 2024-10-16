@@ -75,7 +75,10 @@ func (ts *TodoService) GetAllTodos(createdBy int) ([]Todo, error) {
 
 	todos := []Todo{}
 	for rows.Next() {
-		rows.Scan(&ts.Todo.ID, &ts.Todo.Title, &ts.Todo.Status)
+		err := rows.Scan(&ts.Todo.ID, &ts.Todo.Title, &ts.Todo.Status)
+		if err != nil {
+			continue
+		}
 
 		todos = append(todos, ts.Todo)
 	}

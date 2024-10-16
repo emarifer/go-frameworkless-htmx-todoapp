@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
 	"runtime"
@@ -70,15 +71,24 @@ func (a adapterHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch e.status {
 		case 400:
 			data["title"] = "| Error 400"
-			tmpl.ExecuteTemplate(w, "error_400.tmpl", data)
+			err := tmpl.ExecuteTemplate(w, "error_400.tmpl", data)
+			if err != nil {
+				panic(fmt.Sprintf("something went wrong: %s\n", err))
+			}
 			return
 		case 404:
 			data["title"] = "| Error 404"
-			tmpl.ExecuteTemplate(w, "error_404.tmpl", data)
+			err := tmpl.ExecuteTemplate(w, "error_404.tmpl", data)
+			if err != nil {
+				panic(fmt.Sprintf("something went wrong: %s\n", err))
+			}
 			return
 		case 500:
 			data["title"] = "| Error 500"
-			tmpl.ExecuteTemplate(w, "error_500.tmpl", data)
+			err := tmpl.ExecuteTemplate(w, "error_500.tmpl", data)
+			if err != nil {
+				panic(fmt.Sprintf("something went wrong: %s\n", err))
+			}
 			return
 		}
 	}
@@ -88,11 +98,14 @@ func (a adapterHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// rendering the template), we return a JSON response with a code 500.
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
-	json.NewEncoder(w).Encode(map[string]any{
+	err = json.NewEncoder(w).Encode(map[string]any{
 		"status":  "failure",
 		"message": "Unknown server error",
 		"code":    http.StatusInternalServerError,
 	})
+	if err != nil {
+		panic(fmt.Sprintf("something went wrong: %s\n", err))
+	}
 }
 
 // asCaller is a convenience function that gets the caller
